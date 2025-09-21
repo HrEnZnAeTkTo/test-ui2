@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EscControl - Система контроля эскалаторов</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #06b6d4;
+            
+            /* Light theme */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --border-color: #475569;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Header */
+        .header {
+            background-color: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .nav {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--primary-color);
+            background-color: var(--bg-tertiary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        /* Main Content */
+        .main {
+            padding: 2rem 0;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--bg-primary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary-color), #3b82f6);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+
+        .stat-card.success {
+            background: linear-gradient(135deg, var(--success-color), #22c55e);
+        }
+
+        .stat-card.warning {
+            background: linear-gradient(135deg, var(--warning-color), #eab308);
+        }
+
+        .stat-card.danger {
+            background: linear-gradient(135deg, var(--danger-color), #f87171);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table th {
+            background-color: var(--bg-tertiary);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .table tr:hover {
+            background-color: var(--bg-tertiary);
+        }
+
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.working {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .status-badge.not-working {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-badge.maintenance {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-badge.open {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-badge.closed {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+
+        .status-badge.in-progress {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        [data-theme="dark"] .status-badge.working {
+            background-color: #064e3b;
+            color: #6ee7b7;
+        }
+
+        [data-theme="dark"] .status-badge.not-working {
+            background-color: #7f1d1d;
+            color: #fca5a5;
+        }
+
+        [data-theme="dark"] .status-badge.maintenance {
+            background-color: #78350f;
+            color: #fcd34d;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .filter-input {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        /* Metro Map */
+        .metro-map {
+            position: relative;
+            background: linear-gradient(135deg, #e6f3ff 0%, #f0f8ff 100%);
+            border-radius: 0.75rem;
+            height: 600px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        [data-theme="dark"] .metro-map {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2a4a6b 100%);
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+
+        .map-zoom-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .map-info {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: var(--bg-primary);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            max-width: 250px;
+            box-shadow: var(--shadow);
+        }
+
+        .metro-line {
+            position: absolute;
+            height: 4px;
+            background: var(--primary-color);
+            border-radius: 2px;
+            z-index: 1;
+        }
+
+        .metro-line.sokolnicheskaya {
+            background: #d42c28;
+        }
+
+        .metro-line.zamoskvoretskaya {
+            background: #2e7d32;
+        }
+
+        .metro-line.arbatsko-pokrovskaya {
+            background: #1976d2;
+        }
+
+        .station-marker {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background-color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid var(--primary-color);
+            box-shadow: var(--shadow);
+            transition: all 0.2s;
+            z-index: 3;
+            transform: translate(-50%, -50%);
+        }
+
+        .station-marker:hover {
+            transform: translate(-50%, -50%) scale(1.3);
+            z-index: 5;
+        }
+
+        .station-marker.has-incidents {
+            border-color: var(--danger-color);
+            background-color: var(--danger-color);
+            animation: pulse 2s infinite;
+        }
+
+        .station-marker.sokolnicheskaya {
+            border-color: #d42c28;
+        }
+
+        .station-marker.zamoskvoretskaya {
+            border-color: #2e7d32;
+        }
+
+        .station-marker.arbatsko-pokrovskaya {
+            border-color: #1976d2;
+        }
+
+        .station-label {
+            position: absolute;
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            top: -8px;
+            left: 50%;
+            border: 1px solid var(--border-color);
+            display: none;
+            z-index: 4;
+        }
+
+        [data-theme="dark"] .station-label {
+            background: rgba(15, 23, 42, 0.95);
+            color: var(--text-primary);
+        }
+
+        .station-marker:hover .station-label {
+            display: block;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .map-coordinate-display {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: var(--bg-primary);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Station details */
+        .escalator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .escalator-card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .escalator-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .escalator-number {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Charts placeholder */
+        .chart {
+            height: 300px;
+            background: linear-gradient(45deg, var(--bg-tertiary), var(--bg-primary));
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            padding: 2rem;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: var(--bg-primary);
+            border-radius: 0.75rem;
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        /* Export controls */
+        .export-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .export-select {
+            padding: 0.375rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .export-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        @media (max-width: 768px) {
+            .nav {
+                display: none;
+            }
+            
+            .filter-bar {
+                flex-direction: column;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .escalator-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                        ☰
+                    </button>
+                    <div class="logo">
+                        🚇 EscControl
+                    </div>
+                </div>
+                <nav class="nav">
+                    <a href="#" class="nav-link active" data-page="dashboard">Дашборд</a>
+                    <a href="#" class="nav-link" data-page="map">Карта метро</a>
+                    <a href="#" class="nav-link" data-page="stations">Станции</a>
+                    <a href="#" class="nav-link" data-page="incidents">Инциденты</a>
+                    <a href="#" class="nav-link" data-page="analytics">Аналитика</a>
+                </nav>
+                <div class="header-actions">
+                    <button class="theme-toggle" id="theme-toggle">
+                        🌙
+                    </button>
+                    <div class="user-info" style="display: none;">
+                        Оператор: Иванов И.И.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Navigation -->
+    <div class="mobile-nav" id="mobile-nav">
+        <div class="mobile-nav-content">
+            <div class="mobile-nav-header">
+                <div class="logo">
+                    🚇 EscControl
+                </div>
+                <button class="mobile-nav-close" id="mobile-nav-close">
+                    ×
+                </button>
+            </div>
+            <div class="mobile-nav-links">
+                <a href="#" class="mobile-nav-link active" data-page="dashboard">📊 Дашборд</a>
+                <a href="#" class="mobile-nav-link" data-page="map">🗺️ Карта метро</a>
+                <a href="#" class="mobile-nav-link" data-page="stations">🚇 Станции</a>
+                <a href="#" class="mobile-nav-link" data-page="incidents">⚠️ Инциденты</a>
+                <a href="#" class="mobile-nav-link" data-page="analytics">📈 Аналитика</a>
+                <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                        Оператор: Иванов И.И.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="main">
+        <div class="container">
+            <!-- Dashboard Page -->
+            <div class="page active" id="dashboard">
+                <h1 style="margin-bottom: 2rem;">Дашборд системы контроля</h1>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-value">156</span>
+                        <span class="stat-label">Всего эскалаторов</span>
+                    </div>
+                    <div class="stat-card success">
+                        <span class="stat-value">148</span>
+                        <span class="stat-label">Работающих</span>
+                    </div>
+                    <div class="stat-card warning">
+                        <span class="stat-value">5</span>
+                        <span class="stat-label">В обслуживании</span>
+                    </div>
+                    <div class="stat-card danger">
+                        <span class="stat-value">3</span>
+                        <span class="stat-label">Не работают</span>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label class="filter-label">Дата с</label>
+                        <input type="date" class="filter-input" value="2025-09-01">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Дата по</label>
+                        <input type="date" class="filter-input" value="2025-09-21">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Станция</label>
+                        <select class="filter-input">
+                            <option>Все станции</option>
+                            <option>Сокольники</option>
+                            <option>Красные ворота</option>
+                            <option>Чистые пруды</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Тип инцидента</label>
+                        <select class="filter-input">
+                            <option>Все типы</option>
+                            <option>Остановка эскалатора</option>
+                            <option>Падение человека</option>
+                            <option>Посторонний предмет</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Последние инциденты</h2>
+                        <button class="btn btn-primary">Все инциденты</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Время</th>
+                                    <th>Станция</th>
+                                    <th>Эскалатор</th>
+                                    <th>Тип</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>21.09.2025 14:35</td>
+                                    <td>Сокольники</td>
+                                    <td>№3</td>
+                                    <td>Остановка эскалатора</td>
+                                    <td><span class="status-badge open">Открыт</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary">Просмотр</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>21.09.2025 13:22</td>
+                                    <td>Красные ворота</td>
+                                    <td>№1</td>
+                                    <td>Посторонний предмет</td>
+                                    <td><span class="status-badge in-progress">В работе</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary">Просмотр</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>21.09.2025 12:10</td>
+                                    <td>Чистые пруды</td>
+                                    <td>№2</td>
+                                    <td>Падение человека</td>
+                                    <td><span class="status-badge closed">Закрыт</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary">Просмотр</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Статистика по дням</h2>
+                    </div>
+                    <div class="chart">
+                        📊 График инцидентов за последние 7 дней
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metro Map Page -->
+            <div class="page" id="map">
+                <h1 style="margin-bottom: 2rem;">Карта метро</h1>
+                
+                <div class="card">
+                    <div class="metro-map" id="metro-map">
+                        <div class="map-coordinate-display" id="coord-display">
+                            Тепловая карта: инциденты за 24ч
+                        </div>
+                        
+                        <!-- Desktop Controls -->
+                        <div class="map-controls">
+                            <div class="map-zoom-controls">
+                                <button class="btn btn-secondary" onclick="zoomMap(1.2)">🔍+</button>
+                                <button class="btn btn-secondary" onclick="zoomMap(0.8)">🔍-</button>
+                            </div>
+                            <button class="btn btn-secondary" onclick="centerMap()">🎯</button>
+                            <button class="btn btn-secondary" onclick="toggleHeatmap()">🌡️</button>
+                            <button class="btn btn-secondary" onclick="resetView()">⟲</button>
+                        </div>
+                        
+                        <!-- SVG карта метро будет загружена здесь -->
+                        <div id="svg-container" style="width: 100%; height: 100%; overflow: hidden;">
+                            <!-- SVG будет загружен динамически -->
+                        </div>
+                        
+                        <!-- Desktop Map Info -->
+                        <div class="map-info" id="map-info-desktop">
+                            <strong>Информация о станции:</strong><br>
+                            <div id="station-info">
+                                Кликните на станцию для получения информации
+                            </div>
+                            <hr style="margin: 0.5rem 0; border-color: var(--border-color);">
+                            <div style="font-size: 0.875rem;">
+                                <strong>Тепловая карта (инциденты за 24ч):</strong><br>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                    <div style="width: 12px; height: 12px; background: #22c55e; border-radius: 50%;"></div>
+                                    0 инцидентов
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                    <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%;"></div>
+                                    1-2 инцидента
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                    <div style="width: 12px; height: 12px; background: #ef4444; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                                    3+ инцидентов
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <div style="width: 12px; height: 12px; background: #6b7280; border-radius: 50%;"></div>
+                                    Нет данных
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile Map Info Panel -->
+                <div class="map-info" id="map-info-mobile">
+                    <div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 0.5rem;">
+                        <strong>Информация о станции</strong>
+                        <button onclick="toggleMobileMapInfo()" style="background: none; border: none; font-size: 1.25rem; color: var(--text-secondary); cursor: pointer; margin-left: auto;">×</button>
+                    </div>
+                    <div id="station-info-mobile">
+                        Кликните на станцию для получения информации
+                    </div>
+                </div>
+
+                <!-- Mobile Controls -->
+                <div class="mobile-controls">
+                    <button class="mobile-controls-toggle" id="mobile-controls-toggle" onclick="toggleMobileControls()">
+                        ⚙️
+                    </button>
+                    <div class="mobile-controls-panel" id="mobile-controls-panel">
+                        <div class="mobile-controls-grid">
+                            <button class="mobile-control-btn" onclick="zoomMap(1.3)">
+                                <span class="icon">🔍</span>
+                                <span>Увеличить</span>
+                            </button>
+                            <button class="mobile-control-btn" onclick="zoomMap(0.7)">
+                                <span class="icon">🔍</span>
+                                <span>Уменьшить</span>
+                            </button>
+                            <button class="mobile-control-btn" onclick="centerMap()">
+                                <span class="icon">🎯</span>
+                                <span>Центр</span>
+                            </button>
+                            <button class="mobile-control-btn" onclick="toggleHeatmap()">
+                                <span class="icon">🌡️</span>
+                                <span>Тепловая</span>
+                            </button>
+                            <button class="mobile-control-btn" onclick="resetView()">
+                                <span class="icon">⟲</span>
+                                <span>Сброс</span>
+                            </button>
+                            <button class="mobile-control-btn" onclick="showMapLegend()">
+                                <span class="icon">ℹ️</span>
+                                <span>Легенда</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stations Page -->
+            <div class="page" id="stations">
+                <h1 style="margin-bottom: 2rem;">Управление станциями</h1>
+                
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label class="filter-label">Поиск станции</label>
+                        <input type="text" class="filter-input" placeholder="Название станции...">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Линия</label>
+                        <select class="filter-input">
+                            <option>Все линии</option>
+                            <option>Сокольническая</option>
+                            <option>Замоскворецкая</option>
+                            <option>Арбатско-Покровская</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="escalator-grid">
+                    <div class="escalator-card">
+                        <div class="escalator-header">
+                            <div>
+                                <div class="escalator-number">Сокольники - Эскалатор №1</div>
+                                <div style="font-size: 0.875rem; color: var(--text-secondary);">Сокольническая линия</div>
+                            </div>
+                            <span class="status-badge working">Работает</span>
+                        </div>
+                        <div style="margin: 1rem 0;">
+                            <div>Камеры: 2 активные</div>
+                            <div>Последний инцидент: 20.09.2025</div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewStation('sokol')">Подробнее</button>
+                            <button class="btn btn-warning">Симуляция</button>
+                        </div>
+                    </div>
+
+                    <div class="escalator-card">
+                        <div class="escalator-header">
+                            <div>
+                                <div class="escalator-number">Красные ворота - Эскалатор №3</div>
+                                <div style="font-size: 0.875rem; color: var(--text-secondary);">Сокольническая линия</div>
+                            </div>
+                            <span class="status-badge not-working">Не работает</span>
+                        </div>
+                        <div style="margin: 1rem 0;">
+                            <div>Камеры: 1 активная</div>
+                            <div style="color: var(--danger-color);">Активный инцидент: Остановка</div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewStation('red-gates')">Подробнее</button>
+                            <button class="btn btn-danger">Аварийная</button>
+                        </div>
+                    </div>
+
+                    <div class="escalator-card">
+                        <div class="escalator-header">
+                            <div>
+                                <div class="escalator-number">Чистые пруды - Эскалатор №2</div>
+                                <div style="font-size: 0.875rem; color: var(--text-secondary);">Сокольническая линия</div>
+                            </div>
+                            <span class="status-badge maintenance">Обслуживание</span>
+                        </div>
+                        <div style="margin: 1rem 0;">
+                            <div>Камеры: 2 активные</div>
+                            <div>Плановое обслуживание до 22.09.2025</div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="viewStation('clean-ponds')">Подробнее</button>
+                            <button class="btn btn-success">Завершить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Incidents Page -->
+            <div class="page" id="incidents">
+                <h1 style="margin-bottom: 2rem;">Управление инцидентами</h1>
+                
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label class="filter-label">Статус</label>
+                        <select class="filter-input">
+                            <option>Все статусы</option>
+                            <option>Открыт</option>
+                            <option>В работе</option>
+                            <option>Закрыт</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Приоритет</label>
+                        <select class="filter-input">
+                            <option>Все приоритеты</option>
+                            <option>Высокий</option>
+                            <option>Средний</option>
+                            <option>Низкий</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Дата</label>
+                        <input type="date" class="filter-input" value="2025-09-21">
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Список инцидентов</h2>
+                        <button class="btn btn-primary" onclick="createIncident()">Создать инцидент</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Время создания</th>
+                                    <th>Станция/Эскалатор</th>
+                                    <th>Тип инцидента</th>
+                                    <th>Уверенность AI</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>#1001</td>
+                                    <td>21.09.2025 14:35:42</td>
+                                    <td>Сокольники / №3</td>
+                                    <td>Остановка эскалатора</td>
+                                    <td>95%</td>
+                                    <td><span class="status-badge open">Открыт</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary" onclick="viewIncident(1001)">Просмотр</button>
+                                        <button class="btn btn-primary">В работу</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>#1000</td>
+                                    <td>21.09.2025 13:22:15</td>
+                                    <td>Красные ворота / №1</td>
+                                    <td>Посторонний предмет</td>
+                                    <td>87%</td>
+                                    <td><span class="status-badge in-progress">В работе</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary" onclick="viewIncident(1000)">Просмотр</button>
+                                        <button class="btn btn-success">Закрыть</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>#999</td>
+                                    <td>21.09.2025 12:10:33</td>
+                                    <td>Чистые пруды / №2</td>
+                                    <td>Падение человека</td>
+                                    <td>92%</td>
+                                    <td><span class="status-badge closed">Закрыт</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary" onclick="viewIncident(999)">Просмотр</button>
+                                        <button class="btn btn-secondary">История</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Page -->
+            <div class="page" id="analytics">
+                <h1 style="margin-bottom: 2rem;">Аналитика и отчеты</h1>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Инциденты по типам</h2>
+                            <div class="export-controls">
+                                <select class="export-select" id="export-format-1">
+                                    <option value="pdf">PDF</option>
+                                    <option value="excel">Excel</option>
+                                    <option value="png">PNG</option>
+                                </select>
+                                <button class="btn btn-secondary export-btn" onclick="exportChart('chart1')">
+                                    📥 Экспорт
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart" id="chart1">
+                            📊 Круговая диаграмма типов инцидентов<br>
+                            <small style="color: var(--text-secondary);">
+                                Остановка эскалатора: 45%<br>
+                                Посторонний предмет: 30%<br>
+                                Падение человека: 15%<br>
+                                Другое: 10%
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Динамика по времени</h2>
+                            <div class="export-controls">
+                                <select class="export-select" id="export-format-2">
+                                    <option value="excel">Excel</option>
+                                    <option value="pdf">PDF</option>
+                                    <option value="png">PNG</option>
+                                </select>
+                                <button class="btn btn-secondary export-btn" onclick="exportChart('chart2')">
+                                    📥 Экспорт
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart" id="chart2">
+                            📈 Линейный график инцидентов во времени<br>
+                            <small style="color: var(--text-secondary);">
+                                Последние 7 дней: тренд снижения на 12%
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Статистика по станциям</h2>
+                        <div class="export-controls">
+                            <select class="export-select" id="export-format-3">
+                                <option value="png">PNG</option>
+                                <option value="pdf">PDF</option>
+                                <option value="excel">Excel</option>
+                            </select>
+                            <button class="btn btn-secondary export-btn" onclick="exportChart('chart3')">
+                                📥 Экспорт
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart" id="chart3">
+                        📊 Гистограмма инцидентов по станциям метро<br>
+                        <small style="color: var(--text-secondary);">
+                            Топ-3: Красные ворота (12), Сокольники (8), Лубянка (6)
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Генерация отчетов</h2>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <button class="btn btn-primary" onclick="generateReport('daily')">📄 Ежедневный отчет</button>
+                            <div class="export-controls">
+                                <select class="export-select" id="daily-format">
+                                    <option value="pdf">PDF</option>
+                                    <option value="excel">Excel</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <button class="btn btn-primary" onclick="generateReport('weekly')">📊 Еженедельный отчет</button>
+                            <div class="export-controls">
+                                <select class="export-select" id="weekly-format">
+                                    <option value="pdf">PDF</option>
+                                    <option value="excel">Excel</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <button class="btn btn-primary" onclick="generateReport('monthly')">📈 Месячный отчет</button>
+                            <div class="export-controls">
+                                <select class="export-select" id="monthly-format">
+                                    <option value="pdf">PDF</option>
+                                    <option value="excel">Excel</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <button class="btn btn-primary" onclick="generateReport('station')">🚇 Отчет по станции</button>
+                            <div class="export-controls">
+                                <select class="export-select" id="station-format">
+                                    <option value="pdf">PDF</option>
+                                    <option value="excel">Excel</option>
+                                    <option value="png">PNG</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for incident details -->
+    <div class="modal" id="incident-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Детали инцидента #1001</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 1rem;">
+                    <strong>Тип:</strong> Остановка эскалатора<br>
+                    <strong>Станция:</strong> Сокольники<br>
+                    <strong>Эскалатор:</strong> №3<br>
+                    <strong>Время:</strong> 21.09.2025 14:35:42<br>
+                    <strong>Уверенность AI:</strong> 95%<br>
+                    <strong>Статус:</strong> <span class="status-badge open">Открыт</span>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <strong>Описание:</strong><br>
+                    Обнаружена остановка эскалатора №3 на станции Сокольники. Система автоматически зафиксировала аномалию в работе механизма.
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <strong>Видеозапись:</strong><br>
+                    <div class="chart" style="height: 200px;">
+                        🎥 Фрагмент видео с камеры наблюдения
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button class="btn btn-primary">Отправить уведомление</button>
+                    <button class="btn btn-success">Взять в работу</button>
+                    <button class="btn btn-danger">Закрыть инцидент</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        
+        // Check for saved theme preference or default to light
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        body.setAttribute('data-theme', currentTheme);
+        themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+
+        themeToggle.addEventListener('click', () => {
+            const isCurrentlyDark = body.getAttribute('data-theme') === 'dark';
+            const newTheme = isCurrentlyDark ? 'light' : 'dark';
+            
+            body.setAttribute('data-theme', newTheme);
+            themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // Mobile navigation functionality
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+        const mobileNav = document.getElementById('mobile-nav');
+        const mobileNavClose = document.getElementById('mobile-nav-close');
+        const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
+        
+        let isMobile = window.innerWidth <= 768;
+        let mobileControlsOpen = false;
+        let mapInfoOpen = false;
+        
+        // Mobile menu handlers
+        mobileMenuToggle?.addEventListener('click', () => {
+            mobileNav.classList.add('active');
+        });
+
+        mobileNavClose?.addEventListener('click', () => {
+            mobileNav.classList.remove('active');
+        });
+
+        // Close mobile nav when clicking outside
+        mobileNav?.addEventListener('click', (e) => {
+            if (e.target === mobileNav) {
+                mobileNav.classList.remove('active');
+            }
+        });
+
+        // Mobile navigation links
+        mobileNavLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                // Remove active class from all links
+                document.querySelectorAll('.nav-link, .mobile-nav-link').forEach(l => l.classList.remove('active'));
+                
+                // Add active class to clicked link and corresponding desktop link
+                link.classList.add('active');
+                const targetPage = link.getAttribute('data-page');
+                const desktopLink = document.querySelector(`.nav-link[data-page="${targetPage}"]`);
+                if (desktopLink) {
+                    desktopLink.classList.add('active');
+                }
+                
+                // Show corresponding page
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById(targetPage).classList.add('active');
+                
+                // Close mobile nav
+                mobileNav.classList.remove('active');
+            });
+        });
+
+        // Mobile controls functionality
+        function toggleMobileControls() {
+            mobileControlsOpen = !mobileControlsOpen;
+            const panel = document.getElementById('mobile-controls-panel');
+            if (mobileControlsOpen) {
+                panel.classList.add('active');
+            } else {
+                panel.classList.remove('active');
+            }
+        }
+
+        // Mobile map info functionality
+        function toggleMobileMapInfo() {
+            mapInfoOpen = !mapInfoOpen;
+            const mapInfo = document.getElementById('map-info-mobile');
+            if (mapInfoOpen) {
+                mapInfo.classList.add('active');
+            } else {
+                mapInfo.classList.remove('active');
+            }
+        }
+
+        function showMapLegend() {
+            const legendContent = `
+Тепловая карта инцидентов за 24 часа:
+
+🟢 Зелёный - 0 инцидентов
+🟡 Жёлтый - 1-2 инцидента  
+🔴 Красный - 3+ инцидентов
+⚫ Серый - нет данных
+
+Управление:
+• Масштабирование: жесты pinch или кнопки +/-
+• Перемещение: перетаскивание пальцем
+• Информация: нажатие на станцию
+            `;
+            alert(legendContent);
+            toggleMobileControls(); // Close controls after showing legend
+        }
+
+        // Enhanced mobile map functionality with touch support
+        let touchStartX, touchStartY;
+        let lastTouchDistance = 0;
+        let isMultiTouch = false;
+
+        // Touch events for mobile gestures
+        function setupTouchEvents() {
+            if (!svgElement) return;
+
+            svgElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+            svgElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+            svgElement.addEventListener('touchend', handleTouchEnd, { passive: false });
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            
+            if (e.touches.length === 1) {
+                // Single touch - start dragging
+                const touch = e.touches[0];
+                touchStartX = touch.clientX - panX;
+                touchStartY = touch.clientY - panY;
+                isDragging = true;
+                isMultiTouch = false;
+            } else if (e.touches.length === 2) {
+                // Multi-touch - prepare for zoom
+                isMultiTouch = true;
+                isDragging = false;
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                lastTouchDistance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            
+            if (e.touches.length === 1 && isDragging && !isMultiTouch) {
+                // Single touch - dragging
+                const touch = e.touches[0];
+                panX = touch.clientX - touchStartX;
+                panY = touch.clientY - touchStartY;
+                updateTransform();
+            } else if (e.touches.length === 2 && isMultiTouch) {
+                // Multi-touch - zooming
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentDistance = Math.sqrt(
+                    Math.pow(touch2.clientX - touch1.clientX, 2) +
+                    Math.pow(touch2.clientY - touch1.clientY, 2)
+                );
+                
+                if (lastTouchDistance > 0) {
+                    const scale = currentDistance / lastTouchDistance;
+                    zoomMap(scale);
+                }
+                lastTouchDistance = currentDistance;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            isDragging = false;
+            isMultiTouch = false;
+            lastTouchDistance = 0;
+        }
+
+        // Update station info for mobile
+        function updateStationInfo(stationName, info, incidents) {
+            const content = `
+                <strong>${info.name}</strong><br>
+                Линия: ${info.line}<br>
+                Координаты: ${info.coords}<br>
+                Эскалаторов: ${info.escalators}<br>
+                Камер: ${info.cameras}<br>
+                Инцидентов за 24ч: ${incidents}<br>
+                Последний инцидент: ${info.lastIncident}
+            `;
+            
+            // Update both desktop and mobile info panels
+            document.getElementById('station-info').innerHTML = content;
+            document.getElementById('station-info-mobile').innerHTML = content;
+            
+            // Show mobile info panel if on mobile
+            if (isMobile && !mapInfoOpen) {
+                toggleMobileMapInfo();
+            }
+        }
+
+        // Enhanced station hover/click handlers
+        function handleStationHover(event) {
+            const stationName = event.target.getAttribute('data-station');
+            if (stationName && stationInfo[stationName]) {
+                const info = stationInfo[stationName];
+                const incidents = incidentData[stationName] || 0;
+                updateStationInfo(stationName, info, incidents);
+            }
+        }
+
+        function handleStationClick(event) {
+            event.stopPropagation();
+            const stationName = event.target.getAttribute('data-station');
+            if (stationName && stationInfo[stationName]) {
+                const info = stationInfo[stationName];
+                const incidents = incidentData[stationName] || 0;
+                
+                updateStationInfo(stationName, info, incidents);
+                
+                if (isMobile) {
+                    // On mobile, always show the info panel
+                    if (!mapInfoOpen) {
+                        toggleMobileMapInfo();
+                    }
+                    // Close mobile controls if open
+                    if (mobileControlsOpen) {
+                        toggleMobileControls();
+                    }
+                } else {
+                    // Desktop behavior - show modal or detailed view
+                    showStationDetails(stationName);
+                }
+            }
+        }
+
+        // Enhanced setupSVGInteractivity with mobile support
+        function setupSVGInteractivity() {
+            if (!svgElement) return;
+
+            // Add handlers for stations
+            const stations = svgElement.querySelectorAll('.metro-station');
+            stations.forEach(station => {
+                station.style.cursor = 'pointer';
+                station.addEventListener('click', handleStationClick);
+                
+                // Only add hover events on non-touch devices
+                if (!('ontouchstart' in window)) {
+                    station.addEventListener('mouseenter', handleStationHover);
+                    station.addEventListener('mouseleave', handleStationLeave);
+                }
+            });
+
+            // Setup drag for desktop
+            if (!isMobile) {
+                svgElement.addEventListener('mousedown', startDragging);
+                svgElement.addEventListener('mousemove', drag);
+                svgElement.addEventListener('mouseup', stopDragging);
+                svgElement.addEventListener('mouseleave', stopDragging);
+                svgElement.addEventListener('wheel', handleWheel);
+            } else {
+                // Setup touch events for mobile
+                setupTouchEvents();
+            }
+        }
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            const wasMobile = isMobile;
+            isMobile = window.innerWidth <= 768;
+            
+            // If switching between mobile/desktop, reinitialize interactions
+            if (wasMobile !== isMobile && svgElement) {
+                setupSVGInteractivity();
+            }
+            
+            // Close mobile nav if switching to desktop
+            if (!isMobile && mobileNav) {
+                mobileNav.classList.remove('active');
+            }
+            
+            // Show/hide user info based on screen size
+            const userInfo = document.querySelector('.user-info');
+            if (userInfo) {
+                userInfo.style.display = isMobile ? 'none' : 'block';
+            }
+        });
+
+        // Close mobile controls when clicking outside
+        document.addEventListener('click', (e) => {
+            const mobileControls = document.querySelector('.mobile-controls');
+            const mobileControlsPanel = document.getElementById('mobile-controls-panel');
+            
+            if (mobileControlsOpen && mobileControls && !mobileControls.contains(e.target)) {
+                toggleMobileControls();
+            }
+        });
+
+        // Enhanced navigation functionality for both desktop and mobile
+        function setupNavigation() {
+            const allNavLinks = document.querySelectorAll('.nav-link, .mobile-nav-link');
+            
+            allNavLinks.forEach(link => {
+                if (!link.classList.contains('mobile-nav-link')) {
+                    // Desktop navigation
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        
+                        // Remove active class from all links
+                        document.querySelectorAll('.nav-link, .mobile-nav-link').forEach(l => l.classList.remove('active'));
+                        
+                        // Add active class to clicked link and corresponding mobile link
+                        link.classList.add('active');
+                        const targetPage = link.getAttribute('data-page');
+                        const mobileLink = document.querySelector(`.mobile-nav-link[data-page="${targetPage}"]`);
+                        if (mobileLink) {
+                            mobileLink.classList.add('active');
+                        }
+                        
+                        // Show corresponding page
+                        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                        document.getElementById(targetPage).classList.add('active');
+                    });
+                }
+            });
+        }
+
+        // Initialize everything when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setupNavigation();
+            
+            // Set initial mobile state
+            isMobile = window.innerWidth <= 768;
+            
+            // Show/hide user info based on initial screen size
+            const userInfo = document.querySelector('.user-info');
+            if (userInfo) {
+                userInfo.style.display = isMobile ? 'none' : 'block';
+            }
+            
+            // Load metro map with delay for proper initialization
+            setTimeout(() => {
+                loadMetroMap();
+            }, 100);
+        });
+
+        // Metro map functionality
+        let currentZoom = 1;
+        let svgElement = null;
+        let showHeatmap = true;
+        let panX = 0, panY = 0;
+        let isDragging = false;
+        let startX, startY;
+
+        // Маппинг названий станций к их ID в SVG
+        const stationMapping = {
+            'Сокольники': 's1_1_Sokolniki',
+            'Красносельская': 's1_Krasnoselskaya',
+            'Комсомольская': 's1_1_Komsomolskaya',
+            'Красные ворота': 's1_Krasniye_Vorota',
+            'Чистые пруды': 's1_1_Chistye_Prudy',
+            'Лубянка': 's1_2_Lubyanka',
+            'Охотный ряд': 's1_1_Okhotny_Ryad',
+            'Библиотека имени Ленина': 's1_4_Biblioteka_Im_Lenina',
+            'Кропоткинская': 's1_1_Kropotkinskaya',
+            'Парк культуры': 's1_2_Park_Kultury',
+            'Фрунзенская': 's1_Frunzenskaya',
+            'Спортивная': 's1_Sportivnaya',
+            'Воробьёвы горы': 's1_Vorobyovy_Gory',
+            'Университет': 's1_Universitet',
+            'Проспект Вернадского': 's1_2_Prospekt_Vernadskogo',
+            'Юго-Западная': 's1_Yugo_Zapadnaya',
+            'Тропарёво': 's1_Troparyovo',
+            'Румянцево': 's1_Rumyantsevo',
+            'Саларьево': 's1_Salaryevo',
+            // Замоскворецкая линия
+            'Речной вокзал': 's2_Rechnoy_Vokzal',
+            'Водный стадион': 's2_1_Vodny_Stadion',
+            'Войковская': 's2_4_Voykovskaya',
+            'Сокол': 's2_Sokol',
+            'Аэропорт': 's2_Aeroport',
+            'Динамо': 's2_2_Dinamo',
+            'Белорусская': 's2_3_Belorusskaya',
+            'Маяковская': 's2_Mayakovskaya',
+            'Тверская': 's2_7_Tverskaya',
+            'Театральная': 's2_3_Teatralnaya',
+            'Новокузнецкая': 's2_2_Novokuznetskaya',
+            'Павелецкая': 's2_3_Paveletskaya',
+            'Автозаводская': 's2_4_Avtozavodskaya',
+            'Технопарк': 's2_Tekhnopark',
+            'Коломенская': 's2_4_Kolomenskaya',
+            'Каширская': 's2_3_Kashirskaya',
+            'Кантемировская': 's2_4_Kantemirovskaya',
+            'Царицыно': 's2_4_Tsaritsyno',
+            'Орехово': 's2_4_Orekhovo',
+            'Домодедовская': 's2_4_Domodedovskaya',
+            'Красногвардейская': 's2_2_Krasnogvardeyskaya'
+        };
+
+        // Данные об инцидентах за последние 24 часа (симуляция)
+        const incidentData = {
+            'Сокольники': 0,
+            'Красные ворота': 3,
+            'Чистые пруды': 1,
+            'Лубянка': 0,
+            'Охотный ряд': 2,
+            'Тверская': 1,
+            'Театральная': 0,
+            'Новокузнецкая': 0,
+            'Павелецкая': 1,
+            'Автозаводская': 0,
+            'Каширская': 2,
+            'Красногвардейская': 1,
+            'Кропоткинская': 0,
+            'Парк культуры': 1,
+            'Фрунзенская': 0,
+            'Спортивная': 0,
+            'Воробьёвы горы': 0,
+            'Университет': 0,
+            'Проспект Вернадского': 1,
+            'Юго-Западная': 0
+        };
+
+        // Информация о станциях
+        const stationInfo = {
+            'Сокольники': {
+                name: 'Сокольники',
+                line: 'Сокольническая',
+                coords: '55.7887, 37.6797',
+                escalators: 2,
+                cameras: 2,
+                lastIncident: '20.09.2025'
+            },
+            'Красные ворота': {
+                name: 'Красные ворота',
+                line: 'Сокольническая', 
+                coords: '55.7687, 37.6346',
+                escalators: 3,
+                cameras: 1,
+                lastIncident: 'Сегодня 14:35'
+            },
+            'Чистые пруды': {
+                name: 'Чистые пруды',
+                line: 'Сокольническая',
+                coords: '55.7653, 37.6387',
+                escalators: 2,
+                cameras: 2,
+                lastIncident: 'Сегодня 12:10'
+            },
+            'Лубянка': {
+                name: 'Лубянка',
+                line: 'Сокольническая',
+                coords: '55.7587, 37.6281',
+                escalators: 4,
+                cameras: 3,
+                lastIncident: '19.09.2025'
+            },
+            'Охотный ряд': {
+                name: 'Охотный ряд',
+                line: 'Сокольническая',
+                coords: '55.7570, 37.6156',
+                escalators: 3,
+                cameras: 2,
+                lastIncident: 'Сегодня 13:22'
+            },
+            'Тверская': {
+                name: 'Тверская',
+                line: 'Замоскворецкая',
+                coords: '55.7664, 37.6043',
+                escalators: 2,
+                cameras: 2,
+                lastIncident: 'Сегодня 11:45'
+            }
+        };
+
+        // Загрузка SVG карты
+        async function loadMetroMap() {
+            try {
+                // В реальном приложении здесь будет загрузка map.svg
+                // Для демо создаём упрощённую SVG карту
+                const svgContent = createDemoSVG();
+                
+                const container = document.getElementById('svg-container');
+                container.innerHTML = svgContent;
+                
+                svgElement = container.querySelector('svg');
+                if (svgElement) {
+                    svgElement.style.width = '100%';
+                    svgElement.style.height = '100%';
+                    svgElement.style.cursor = 'grab';
+                    
+                    setupSVGInteractivity();
+                    applyHeatmap();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки карты метро:', error);
+                document.getElementById('svg-container').innerHTML = 
+                    '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">Ошибка загрузки карты метро</div>';
+            }
+        }
+
+        // Создание демо SVG (в реальном проекте будет загружаться map.svg)
+        function createDemoSVG() {
+            return `
+                <svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Сокольническая линия -->
+                    <line x1="50" y1="300" x2="750" y2="300" stroke="#ed1b35" stroke-width="8"/>
+                    
+                    <!-- Замоскворецкая линия -->
+                    <line x1="400" y1="50" x2="400" y2="550" stroke="#44b85c" stroke-width="8"/>
+                    
+                    <!-- Станции Сокольнической линии -->
+                    <circle id="s1_1_Sokolniki" class="metro-station" cx="100" cy="300" r="12" fill="white" stroke="#ed1b35" stroke-width="3" data-station="Сокольники"/>
+                    <text x="100" y="285" text-anchor="middle" font-size="12" fill="var(--text-primary)">Сокольники</text>
+                    
+                    <circle id="s1_Krasniye_Vorota" class="metro-station" cx="200" cy="300" r="12" fill="white" stroke="#ed1b35" stroke-width="3" data-station="Красные ворота"/>
+                    <text x="200" y="285" text-anchor="middle" font-size="12" fill="var(--text-primary)">Красные ворота</text>
+                    
+                    <circle id="s1_1_Chistye_Prudy" class="metro-station" cx="300" cy="300" r="12" fill="white" stroke="#ed1b35" stroke-width="3" data-station="Чистые пруды"/>
+                    <text x="300" y="285" text-anchor="middle" font-size="12" fill="var(--text-primary)">Чистые пруды</text>
+                    
+                    <circle id="s1_2_Lubyanka" class="metro-station" cx="400" cy="300" r="12" fill="white" stroke="#ed1b35" stroke-width="3" data-station="Лубянка"/>
+                    <text x="400" y="285" text-anchor="middle" font-size="12" fill="var(--text-primary)">Лубянка</text>
+                    
+                    <circle id="s1_1_Okhotny_Ryad" class="metro-station" cx="500" cy="300" r="12" fill="white" stroke="#ed1b35" stroke-width="3" data-station="Охотный ряд"/>
+                    <text x="500" y="285" text-anchor="middle" font-size="12" fill="var(--text-primary)">Охотный ряд</text>
+                    
+                    <circle id="s1_2_Park_Kultury" class="metro-station" cx="600" cy="300" r="12" fill="white" stroke="#ed1b35" stroke-width="3" data-station="Парк культуры"/>
+                    <text x="600" y="285" text-anchor="middle" font-size="12" fill="var(--text-primary)">Парк культуры</text>
+                    
+                    <!-- Станции Замоскворецкой линии -->
+                    <circle id="s2_7_Tverskaya" class="metro-station" cx="400" cy="150" r="12" fill="white" stroke="#44b85c" stroke-width="3" data-station="Тверская"/>
+                    <text x="400" y="135" text-anchor="middle" font-size="12" fill="var(--text-primary)">Тверская</text>
+                    
+                    <circle id="s2_3_Teatralnaya" class="metro-station" cx="400" cy="250" r="12" fill="white" stroke="#44b85c" stroke-width="3" data-station="Театральная"/>
+                    <text x="400" y="235" text-anchor="middle" font-size="12" fill="var(--text-primary)">Театральная</text>
+                    
+                    <circle id="s2_2_Novokuznetskaya" class="metro-station" cx="400" cy="350" r="12" fill="white" stroke="#44b85c" stroke-width="3" data-station="Новокузнецкая"/>
+                    <text x="400" y="335" text-anchor="middle" font-size="12" fill="var(--text-primary)">Новокузнецкая</text>
+                    
+                    <circle id="s2_3_Paveletskaya" class="metro-station" cx="400" cy="450" r="12" fill="white" stroke="#44b85c" stroke-width="3" data-station="Павелецкая"/>
+                    <text x="400" y="435" text-anchor="middle" font-size="12" fill="var(--text-primary)">Павелецкая</text>
+                </svg>
+            `;
+        }
+
+        // Настройка интерактивности SVG
+        function setupSVGInteractivity() {
+            if (!svgElement) return;
+
+            // Добавляем обработчики для станций
+            const stations = svgElement.querySelectorAll('.metro-station');
+            stations.forEach(station => {
+                station.style.cursor = 'pointer';
+                station.addEventListener('click', handleStationClick);
+                station.addEventListener('mouseenter', handleStationHover);
+                station.addEventListener('mouseleave', handleStationLeave);
+            });
+
+            // Добавляем drag & drop для перемещения карты
+            svgElement.addEventListener('mousedown', startDragging);
+            svgElement.addEventListener('mousemove', drag);
+            svgElement.addEventListener('mouseup', stopDragging);
+            svgElement.addEventListener('mouseleave', stopDragging);
+
+            // Добавляем zoom на колесико мыши
+            svgElement.addEventListener('wheel', handleWheel);
+        }
+
+        // Обработка клика по станции
+        function handleStationClick(event) {
+            event.stopPropagation();
+            const stationName = event.target.getAttribute('data-station');
+            if (stationName && stationInfo[stationName]) {
+                showStationDetails(stationName);
+            }
+        }
+
+        // Обработка наведения на станцию
+        function handleStationHover(event) {
+            const stationName = event.target.getAttribute('data-station');
+            if (stationName && stationInfo[stationName]) {
+                const info = stationInfo[stationName];
+                const incidents = incidentData[stationName] || 0;
+                
+                document.getElementById('station-info').innerHTML = `
+                    <strong>${info.name}</strong><br>
+                    Линия: ${info.line}<br>
+                    Координаты: ${info.coords}<br>
+                    Эскалаторов: ${info.escalators}<br>
+                    Камер: ${info.cameras}<br>
+                    Инцидентов за 24ч: ${incidents}<br>
+                    Последний инцидент: ${info.lastIncident}
+                `;
+            }
+        }
+
+        // Обработка ухода курсора со станции
+        function handleStationLeave() {
+            document.getElementById('station-info').innerHTML = 
+                'Кликните на станцию для получения информации';
+        }
+
+        // Показ деталей станции
+        function showStationDetails(stationName) {
+            const info = stationInfo[stationName];
+            const incidents = incidentData[stationName] || 0;
+            
+            alert(`
+Станция: ${info.name}
+Линия: ${info.line}
+Координаты: ${info.coords}
+Эскалаторов: ${info.escalators}
+Камер: ${info.cameras}
+Инцидентов за 24 часа: ${incidents}
+Последний инцидент: ${info.lastIncident}
+
+В реальном приложении здесь откроется детальная страница станции.
+            `);
+        }
+
+        // Применение тепловой карты
+        function applyHeatmap() {
+            if (!svgElement || !showHeatmap) return;
+
+            const stations = svgElement.querySelectorAll('.metro-station');
+            stations.forEach(station => {
+                const stationName = station.getAttribute('data-station');
+                const incidents = incidentData[stationName] || 0;
+                
+                let color = '#6b7280'; // По умолчанию серый
+                let animation = '';
+                
+                if (incidents === 0) {
+                    color = '#22c55e'; // Зелёный
+                } else if (incidents <= 2) {
+                    color = '#f59e0b'; // Жёлтый
+                } else {
+                    color = '#ef4444'; // Красный
+                    animation = 'pulse 2s infinite';
+                }
+                
+                station.setAttribute('fill', color);
+                station.style.animation = animation;
+            });
+        }
+
+        // Управление масштабированием
+        function zoomMap(factor) {
+            currentZoom *= factor;
+            currentZoom = Math.max(0.5, Math.min(5, currentZoom));
+            updateTransform();
+        }
+
+        function centerMap() {
+            panX = 0;
+            panY = 0;
+            currentZoom = 1;
+            updateTransform();
+        }
+
+        function resetView() {
+            panX = 0;
+            panY = 0;
+            currentZoom = 1;
+            updateTransform();
+        }
+
+        function updateTransform() {
+            if (svgElement) {
+                svgElement.style.transform = `translate(${panX}px, ${panY}px) scale(${currentZoom})`;
+                svgElement.style.transformOrigin = 'center center';
+            }
+        }
+
+        // Обработка колесика мыши для зума
+        function handleWheel(event) {
+            event.preventDefault();
+            const delta = event.deltaY;
+            const factor = delta > 0 ? 0.9 : 1.1;
+            zoomMap(factor);
+        }
+
+        // Перетаскивание карты
+        function startDragging(event) {
+            if (event.target.classList.contains('metro-station')) return;
+            
+            isDragging = true;
+            startX = event.clientX - panX;
+            startY = event.clientY - panY;
+            svgElement.style.cursor = 'grabbing';
+        }
+
+        function drag(event) {
+            if (!isDragging) return;
+            
+            panX = event.clientX - startX;
+            panY = event.clientY - startY;
+            updateTransform();
+        }
+
+        function stopDragging() {
+            isDragging = false;
+            if (svgElement) {
+                svgElement.style.cursor = 'grab';
+            }
+        }
+
+        // Переключение тепловой карты
+        function toggleHeatmap() {
+            showHeatmap = !showHeatmap;
+            
+            if (showHeatmap) {
+                applyHeatmap();
+                document.getElementById('coord-display').textContent = 'Тепловая карта: инциденты за 24ч';
+            } else {
+                // Возвращаем обычные цвета
+                const stations = svgElement.querySelectorAll('.metro-station');
+                stations.forEach(station => {
+                    station.setAttribute('fill', 'white');
+                    station.style.animation = '';
+                });
+                document.getElementById('coord-display').textContent = 'Обычный режим карты';
+            }
+        }
+
+        // Enhanced loadMetroMap with mobile optimizations
+        async function loadMetroMap() {
+            try {
+                const svgContent = createDemoSVG();
+                const container = document.getElementById('svg-container');
+                container.innerHTML = svgContent;
+                
+                svgElement = container.querySelector('svg');
+                if (svgElement) {
+                    svgElement.style.width = '100%';
+                    svgElement.style.height = '100%';
+                    svgElement.style.cursor = isMobile ? 'default' : 'grab';
+                    svgElement.style.touchAction = 'none'; // Prevent default touch behaviors
+                    
+                    setupSVGInteractivity();
+                    applyHeatmap();
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки карты метро:', error);
+                document.getElementById('svg-container').innerHTML = 
+                    '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); text-align: center; padding: 2rem;">⚠️<br>Ошибка загрузки карты метро<br><small>Проверьте подключение к интернету</small></div>';
+            }
+        }
+
+        // Enhanced createDemoSVG with better mobile visibility
+        function createDemoSVG() {
+            const stationRadius = isMobile ? '16' : '12';
+            const lineWidth = isMobile ? '10' : '8';
+            const fontSize = isMobile ? '14' : '12';
+            
+            return `
+                <svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Сокольническая линия -->
+                    <line x1="50" y1="300" x2="750" y2="300" stroke="#ed1b35" stroke-width="${lineWidth}"/>
+                    
+                    <!-- Замоскворецкая линия -->
+                    <line x1="400" y1="50" x2="400" y2="550" stroke="#44b85c" stroke-width="${lineWidth}"/>
+                    
+                    <!-- Станции Сокольнической линии -->
+                    <circle id="s1_1_Sokolniki" class="metro-station" cx="100" cy="300" r="${stationRadius}" fill="white" stroke="#ed1b35" stroke-width="4" data-station="Сокольники"/>
+                    <text x="100" y="${isMobile ? '275' : '285'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Сокольники</text>
+                    
+                    <circle id="s1_Krasniye_Vorota" class="metro-station" cx="200" cy="300" r="${stationRadius}" fill="white" stroke="#ed1b35" stroke-width="4" data-station="Красные ворота"/>
+                    <text x="200" y="${isMobile ? '275' : '285'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Красные ворота</text>
+                    
+                    <circle id="s1_1_Chistye_Prudy" class="metro-station" cx="300" cy="300" r="${stationRadius}" fill="white" stroke="#ed1b35" stroke-width="4" data-station="Чистые пруды"/>
+                    <text x="300" y="${isMobile ? '275' : '285'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Чистые пруды</text>
+                    
+                    <circle id="s1_2_Lubyanka" class="metro-station" cx="400" cy="300" r="${stationRadius}" fill="white" stroke="#ed1b35" stroke-width="4" data-station="Лубянка"/>
+                    <text x="400" y="${isMobile ? '275' : '285'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Лубянка</text>
+                    
+                    <circle id="s1_1_Okhotny_Ryad" class="metro-station" cx="500" cy="300" r="${stationRadius}" fill="white" stroke="#ed1b35" stroke-width="4" data-station="Охотный ряд"/>
+                    <text x="500" y="${isMobile ? '275' : '285'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Охотный ряд</text>
+                    
+                    <circle id="s1_2_Park_Kultury" class="metro-station" cx="600" cy="300" r="${stationRadius}" fill="white" stroke="#ed1b35" stroke-width="4" data-station="Парк культуры"/>
+                    <text x="600" y="${isMobile ? '275' : '285'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Парк культуры</text>
+                    
+                    <!-- Станции Замоскворецкой линии -->
+                    <circle id="s2_7_Tverskaya" class="metro-station" cx="400" cy="150" r="${stationRadius}" fill="white" stroke="#44b85c" stroke-width="4" data-station="Тверская"/>
+                    <text x="400" y="${isMobile ? '125' : '135'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Тверская</text>
+                    
+                    <circle id="s2_3_Teatralnaya" class="metro-station" cx="400" cy="250" r="${stationRadius}" fill="white" stroke="#44b85c" stroke-width="4" data-station="Театральная"/>
+                    <text x="430" y="255" text-anchor="start" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Театральная</text>
+                    
+                    <circle id="s2_2_Novokuznetskaya" class="metro-station" cx="400" cy="350" r="${stationRadius}" fill="white" stroke="#44b85c" stroke-width="4" data-station="Новокузнецкая"/>
+                    <text x="430" y="355" text-anchor="start" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Новокузнецкая</text>
+                    
+                    <circle id="s2_3_Paveletskaya" class="metro-station" cx="400" cy="450" r="${stationRadius}" fill="white" stroke="#44b85c" stroke-width="4" data-station="Павелецкая"/>
+                    <text x="400" y="${isMobile ? '475' : '465'}" text-anchor="middle" font-size="${fontSize}" fill="var(--text-primary)" font-weight="500">Павелецкая</text>
+                </svg>
+            `;
+        }
+
+        // Enhanced zoom function with mobile-friendly limits
+        function zoomMap(factor) {
+            currentZoom *= factor;
+            
+            // Different zoom limits for mobile vs desktop
+            const minZoom = isMobile ? 0.3 : 0.5;
+            const maxZoom = isMobile ? 8 : 5;
+            
+            currentZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+            updateTransform();
+            
+            // Update coordinate display
+            document.getElementById('coord-display').textContent = 
+                `Масштаб: ${Math.round(currentZoom * 100)}%`;
+        }
+
+        // Enhanced updateTransform with better mobile performance
+        function updateTransform() {
+            if (svgElement) {
+                // Use transform3d for better mobile performance
+                const transform = `translate3d(${panX}px, ${panY}px, 0) scale(${currentZoom})`;
+                svgElement.style.transform = transform;
+                svgElement.style.transformOrigin = 'center center';
+                
+                // Add will-change for better mobile performance during animations
+                svgElement.style.willChange = 'transform';
+                
+                // Remove will-change after animation to save resources
+                setTimeout(() => {
+                    if (svgElement) {
+                        svgElement.style.willChange = 'auto';
+                    }
+                }, 500);
+            }
+        }
+
+        // Enhanced toggleHeatmap with mobile feedback
+        function toggleHeatmap() {
+            showHeatmap = !showHeatmap;
+            
+            if (showHeatmap) {
+                applyHeatmap();
+                document.getElementById('coord-display').textContent = 'Тепловая карта: инциденты за 24ч';
+                
+                // Mobile feedback
+                if (isMobile) {
+                    const button = document.querySelector('.mobile-control-btn:nth-child(4)');
+                    if (button) {
+                        button.style.backgroundColor = 'var(--primary-color)';
+                        button.style.color = 'white';
+                    }
+                }
+            } else {
+                // Возвращаем обычные цвета
+                const stations = svgElement.querySelectorAll('.metro-station');
+                stations.forEach(station => {
+                    station.setAttribute('fill', 'white');
+                    station.style.animation = '';
+                });
+                document.getElementById('coord-display').textContent = 'Обычный режим карты';
+                
+                // Reset mobile button
+                if (isMobile) {
+                    const button = document.querySelector('.mobile-control-btn:nth-child(4)');
+                    if (button) {
+                        button.style.backgroundColor = '';
+                        button.style.color = '';
+                    }
+                }
+            }
+            
+            // Close mobile controls after action
+            if (isMobile && mobileControlsOpen) {
+                setTimeout(toggleMobileControls, 300);
+            }
+        }
+
+        // Enhanced centerMap with mobile feedback
+        function centerMap() {
+            panX = 0;
+            panY = 0;
+            currentZoom = 1;
+            updateTransform();
+            
+            document.getElementById('coord-display').textContent = 
+                showHeatmap ? 'Тепловая карта: инциденты за 24ч' : 'Обычный режим карты';
+            
+            // Close mobile controls after action
+            if (isMobile && mobileControlsOpen) {
+                setTimeout(toggleMobileControls, 300);
+            }
+        }
+
+        // Enhanced resetView function
+        function resetView() {
+            panX = 0;
+            panY = 0;
+            currentZoom = 1;
+            showHeatmap = true;
+            updateTransform();
+            applyHeatmap();
+            
+            document.getElementById('coord-display').textContent = 'Тепловая карта: инциденты за 24ч';
+            
+            // Reset mobile button states
+            if (isMobile) {
+                const heatmapButton = document.querySelector('.mobile-control-btn:nth-child(4)');
+                if (heatmapButton) {
+                    heatmapButton.style.backgroundColor = 'var(--primary-color)';
+                    heatmapButton.style.color = 'white';
+                }
+            }
+            
+            // Close mobile controls after action
+            if (isMobile && mobileControlsOpen) {
+                setTimeout(toggleMobileControls, 300);
+            }
+        }
+
+        // Improved handleStationLeave for desktop
+        function handleStationLeave() {
+            if (!isMobile) {
+                document.getElementById('station-info').innerHTML = 
+                    'Кликните на станцию для получения информации';
+            }
+        }
+
+        // Add vibration feedback for mobile interactions (if supported)
+        function vibrateFeedback(pattern = [10]) {
+            if (isMobile && 'vibrate' in navigator) {
+                navigator.vibrate(pattern);
+            }
+        }
+
+        // Enhanced station click with vibration feedback
+        function handleStationClickWithFeedback(event) {
+            vibrateFeedback([20]); // Short vibration feedback
+            handleStationClick(event);
+        }
+
+        // Export functionality
+        function exportChart(chartId) {
+            const chart = document.getElementById(chartId);
+            const formatSelect = chart.parentElement.querySelector('.export-select');
+            const format = formatSelect.value;
+            
+            // Simulate export process
+            const chartTitle = chart.parentElement.querySelector('.card-title').textContent;
+            
+            // Show loading state
+            const exportBtn = chart.parentElement.querySelector('.export-btn');
+            const originalText = exportBtn.innerHTML;
+            exportBtn.innerHTML = '⏳ Экспорт...';
+            exportBtn.disabled = true;
+            
+            setTimeout(() => {
+                alert(`Экспорт "${chartTitle}" в формате ${format.toUpperCase()} завершен`);
+                exportBtn.innerHTML = originalText;
+                exportBtn.disabled = false;
+                
+                // In real implementation, this would trigger file download
+                console.log(`Exporting ${chartId} as ${format}`);
+            }, 2000);
+        }
+
+        function generateReport(reportType) {
+            const formatSelect = document.getElementById(`${reportType}-format`);
+            const format = formatSelect ? formatSelect.value : 'pdf';
+            
+            const reportNames = {
+                'daily': 'Ежедневный отчет',
+                'weekly': 'Еженедельный отчет', 
+                'monthly': 'Месячный отчет',
+                'station': 'Отчет по станции'
+            };
+            
+            const reportName = reportNames[reportType] || reportType;
+            
+            // Simulate report generation
+            alert(`Генерация "${reportName}" в формате ${format.toUpperCase()} начата. Файл будет доступен для скачивания через несколько секунд.`);
+            
+            // In real implementation, this would call backend API
+            console.log(`Generating ${reportType} report in ${format} format`);
+        }
+
+        // Modal functions
+        function viewIncident(incidentId) {
+            document.getElementById('incident-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('incident-modal').classList.remove('active');
+        }
+
+        function createIncident() {
+            alert('Форма создания нового инцидента');
+        }
+
+        function viewStation(stationId) {
+            alert(`Просмотр деталей станции: ${stationId}`);
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('incident-modal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                closeModal();
+            }
+        });
+
+        // Simulate real-time updates
+        setInterval(() => {
+            // In real implementation, this would fetch updates from the server
+            // and update the UI accordingly
+            console.log('Checking for updates...');
+        }, 30000); // Check every 30 seconds
+    </script>
+</body>
+</html>
